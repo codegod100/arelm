@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+	<circle cx="64" cy="64" r="52" fill="#ffffff" fill-opacity="0.15"/>
+	<circle cx="64" cy="64" r="52" fill="none" stroke="#ffffff" stroke-width="6"/>
+	<!-- "+" / "-" counter glyph -->
+	<g stroke="#ffffff" stroke-width="8" stroke-linecap="round">
+		<line x1="40" y1="46" x2="56" y2="46"/>
+		<line x1="48" y1="38" x2="48" y2="54"/>
+		<line x1="72" y1="82" x2="88" y2="82"/>
+	</g>
+	<text x="64" y="72" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="bold" fill="#ffffff">4</text>
+</svg>

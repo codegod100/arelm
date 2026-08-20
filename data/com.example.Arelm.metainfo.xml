@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AppStream metainfo for arelm. This file is what pixiewood.xml's
+  <xi:include href="build://{arch}/com.example.Arelm.metainfo.xml"/> pulls
+  in - see the `configure_file()` call in meson.build that copies this
+  source file into each per-arch build directory under that exact name.
+-->
+<component type="desktop-application" xmlns="https://specifications.freedesktop.org/metainfo/1.0">
+	<id>com.example.Arelm</id>
+	<name>Arelm</name>
+	<summary>A relm4 counter, packaged for Android via pixiewood</summary>
+	<metadata_license>CC0-1.0</metadata_license>
+	<project_license>GPL-3.0-or-later</project_license>
+	<description>
+		<p>
+			Arelm is a minimal proof-of-concept application demonstrating
+			relm4 (a reactive, Elm-inspired application framework for
+			GTK4/Rust) built and packaged for Android using
+			gtk-android-builder (pixiewood).
+		</p>
+		<p>
+			The same relm4 component runs unmodified on the desktop (via
+			`cargo run`) and on Android (built as a cdylib and loaded by
+			GTK's Android backend).
+		</p>
+	</description>
+	<branding>
+		<color type="primary" scheme_preference="light">#8b5cf6</color>
+		<color type="primary" scheme_preference="dark">#5b21b6</color>
+	</branding>
+	<content_rating type="oars-1.1"/>
+	<releases>
+		<release version="0.1.0" date="2026-08-20">
+			<description>
+				<p>Initial proof-of-concept: a relm4 counter.</p>
+			</description>
+		</release>
+	</releases>
+</component>

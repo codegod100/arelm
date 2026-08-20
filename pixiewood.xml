@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  pixiewood manifest for arelm - see gtk-android-builder's "Pixiewood
+  Format" docs (https://github.com/sp1ritCS/gtk-android-builder#pixiewood-format)
+  and pixiewood.xsd for the schema this follows.
+
+  Build with (on a machine that has the Android SDK/NDK, Android Studio and
+  meson >=1.9 installed - see README.md):
+    pixiewood prepare -s "$ANDROID_HOME" pixiewood.xml
+    pixiewood generate
+    pixiewood build
+-->
+<app xmlns="https://sp1rit.arpa/pixiewood/" xmlns:xi="http://www.w3.org/2001/XInclude">
+	<metainfo vercalc="count">
+		<!--
+			The metainfo file itself is produced inside the build directory
+			by meson.build's `configure_file()` call, from
+			data/com.example.Arelm.metainfo.xml - see the comment there for
+			why it has to be a build product rather than a plain src:// path.
+		-->
+		<xi:include href="build://{arch}/com.example.Arelm.metainfo.xml" parse="xml"/>
+	</metainfo>
+	<style>
+		<!-- Plain GTK, no libadwaita - keeps the <dependencies> list below
+		     to exactly what gtk-android-builder ships wraps for out of the
+		     box (glib, fontconfig, gtk). -->
+		<theme name="gtk"/>
+		<icon type="generate">
+			<drawable target="foreground" scale=".55" type="svg" path="src://data/icons/arelm.svg"/>
+			<color target="background">#1e1b4b</color>
+			<drawable target="monochrome" scale=".55" type="svg" path="src://data/icons/arelm-symbolic.svg"/>
+		</icon>
+	</style>
+	<dependencies>
+		<glib>
+			<patch>hack</patch>
+		</glib>
+		<fontconfig/>
+		<gtk/>
+	</dependencies>
+	<build target="arelm">
+		<!-- Must match the name of the custom_target() in meson.build -->
+		<architectures>
+			<arch>aarch64</arch>
+			<arch>x86_64</arch>
+		</architectures>
+	</build>
+</app>

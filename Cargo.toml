@@ -1,0 +1,31 @@
+[package]
+name = "arelm"
+version = "0.1.0"
+edition = "2021"
+description = "PoC: a relm4 (Rust/GTK4) app packaged for Android via gtk-android-builder (pixiewood)"
+license = "GPL-3.0-or-later"
+
+# Two outputs from one crate:
+#  - a `bin` for normal desktop development (`cargo run`)
+#  - a `cdylib` for pixiewood/GTK-on-Android, which loads the app as a JNI
+#    shared library and calls its exported C `main()` symbol.
+[lib]
+name = "arelm"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "arelm"
+path = "src/main.rs"
+
+[dependencies]
+# relm4 re-exports the exact gtk4/gio/glib versions it was built against
+# (relm4::gtk, relm4::gtk::gio, ...) - depend only on relm4 to avoid version
+# skew between our crate and relm4's internals.
+relm4 = "0.11"
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+panic = "abort"
