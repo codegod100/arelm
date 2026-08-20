@@ -7,9 +7,19 @@ Rust/GTK4) application for Android using
 
 It's one small counter component, compiled twice from the same source:
 
-- as a normal desktop binary, for `cargo run`;
+- as a normal desktop binary, via `buck2 run //:arelm`;
 - as a `cdylib` exporting a C `main()`, which is what pixiewood/GTK's
   Android backend loads as a JNI library on-device.
+
+The whole crate graph - arelm's own code plus every transitive dependency
+(relm4, the gtk4-rs bindings, the `-sys` crates underneath them, and
+everything under *those*) - builds with **[buck2](https://buck2.build/)**.
+There is no `cargo build`/`cargo run` anywhere in this repo's build graph,
+for either the desktop or the Android target: `Cargo.toml`/`Cargo.lock`
+exist only as the dependency-resolution source of truth that
+[reindeer](https://github.com/facebookincubator/reindeer) reads to
+generate real buck2 `rust_library` targets (see `third-party/BUCK`, and
+"How the buck2 build is put together" below).
 
 ## Why this needs glue at all
 
@@ -19,12 +29,13 @@ compiles it straight to a shared object exporting `main`, which GTK's own
 Android glue (`gdk/android`, loaded into the app process via JNI) looks up
 and calls after JNI/GLib setup.
 
-relm4 apps aren't meson/C projects, they're **cargo** projects. So instead
-of using meson's C frontend at all, `meson.build` here defines a
-`custom_target()` that shells out to `cargo build` for the right Android
-target triple, and installs the resulting `.so` exactly where pixiewood
-expects it (`get_option('libdir')`, which pixiewood's cross files repoint
-at `lib/<abi>/` for the APK's `jniLibs`). Rust supplies the ABI contract
+relm4 apps aren't meson/C projects, they're **Rust** projects built with
+buck2. So instead of using meson's C frontend at all, `meson.build` here
+defines a `custom_target()` that shells out to `buck2 build
+//:arelm-lib[cdylib]` for the right Android target platform, and installs
+the resulting `.so` exactly where pixiewood expects it
+(`get_option('libdir')`, which pixiewood's cross files repoint at
+`lib/<abi>/` for the APK's `jniLibs`). Rust supplies the ABI contract
 `main(int, char**, char**) -> int` (see `src/android.rs`) by hand instead of
 via meson's `android_exe_type`, since that machinery never runs for us.
 
@@ -37,11 +48,14 @@ via meson's `android_exe_type`, since that machinery never runs for us.
         (desktop `fn main`)      (cdylib `extern "C" fn main`,
                                    cfg(target_os = "android"))
                     │                            │
-              `cargo run`               cargo built for
-                                    aarch64/x86_64-linux-android
-                                       by meson.build's
-                                       custom_target, driven
-                                       by `pixiewood build`
+            `buck2 run //:arelm`        `buck2 build
+                                     //:arelm-lib[cdylib]`,
+                                     cross-compiled against
+                                     `//platforms:android-
+                                     {aarch64,x86_64}`, driven
+                                     by meson.build's
+                                     custom_target, in turn
+                                     driven by `pixiewood build`
                                                   │
                                      packaged into an APK by
                                      pixiewood's generated
@@ -53,10 +67,14 @@ via meson's `android_exe_type`, since that machinery never runs for us.
 | Path | Purpose |
 |---|---|
 | `src/app.rs` | The actual relm4 UI (a counter). Plain GTK4, no libadwaita. |
-| `src/main.rs` | Desktop entrypoint (`cargo run`). |
+| `src/main.rs` | Desktop entrypoint (`buck2 run //:arelm`). |
 | `src/android.rs` | Android cdylib entrypoint: exports the C `main` pixiewood/GTK's Android glue calls. |
-| `meson.build` | Wraps `cargo` in a `custom_target` pixiewood can build & install like any other meson target. |
-| `build-scripts/cargo-build-cdylib.sh` | The actual `cargo build` invocation meson's custom_target runs. |
+| `BUCK` | arelm's own `rust_library`/`rust_binary` targets (see "How the buck2 build is put together" below). |
+| `platforms/BUCK` | `platform()`/`config_setting()` targets for `android-aarch64`/`android-x86_64`, keying every other `select()` in this repo. |
+| `toolchains/BUCK` | The NDK-aware `rust`/`cxx` toolchains buck2 uses to actually cross-compile and link for Android. |
+| `reindeer.toml`, `third-party/` | reindeer's config, fixups, vendored crate sources, and the generated `third-party/BUCK` - the entire third-party dependency graph as real buck2 targets. See below. |
+| `meson.build` | Wraps `buck2 build //:arelm-lib[cdylib]` in a `custom_target` pixiewood can build & install like any other meson target. |
+| `build-scripts/buck2-build-cdylib.sh` | The actual `buck2 build` invocation meson's custom_target runs. |
 | `pixiewood.xml` | The pixiewood manifest (app id, icon, dependencies, build target, architectures). |
 | `data/com.example.Arelm.metainfo.xml` | AppStream metadata (app id, version, icon branding colour). |
 | `data/icons/*.xml` | Adaptive icon foreground/monochrome layers, hand-authored as Android VectorDrawables directly (see "Avoiding the Android Studio dependency" below) - pixiewood's `generate` step copies these in verbatim. |
@@ -64,12 +82,13 @@ via meson's `android_exe_type`, since that machinery never runs for us.
 ## Desktop development
 
 ```sh
-cargo run
+buck2 run //:arelm
 ```
 
-This builds and runs `src/main.rs` against your system's GTK4 - no
-Android SDK/NDK, meson, or pixiewood involved. Iterate on `src/app.rs`
-here; the exact same component is what gets cross-compiled for Android.
+This builds and runs `src/main.rs` against your system's GTK4 (via
+`pkg-config`, same as before) - no Android SDK/NDK, meson, or pixiewood
+involved. Iterate on `src/app.rs` here; the exact same component is what
+gets cross-compiled for Android.
 
 You can also drive it through the same `meson.build` pixiewood uses, which
 is a good way to sanity-check that file in isolation:
@@ -81,11 +100,13 @@ meson compile -C builddir
 
 On a plain host build (no cross file), `dependency('gtk4')` in
 `meson.build` resolves to your system GTK4 instead of pixiewood's
-Android-cross-built subproject, so this works standalone and fast.
+Android-cross-built subproject, so this works standalone and fast - meson
+just shells out to `buck2 build //:arelm-lib[cdylib]` with no
+`--target-platforms` override, which resolves to your host platform.
 
 ## Building the Android package
 
-This needs, on top of what `cargo run` needs above:
+This needs, on top of what desktop development needs above:
 
 - **gtk-android-builder** (pixiewood) itself - see its
   [README](https://github.com/sp1ritCS/gtk-android-builder#installation)
@@ -96,24 +117,24 @@ This needs, on top of what `cargo run` needs above:
   `build-tools;36.0.0` specifically need to be installed via `sdkmanager` -
   the generated `app/build.gradle`'s `compileSdk` is 36, which won't
   necessarily match whatever platform you happened to install first.
-- The Rust Android targets:
+  `toolchains/BUCK`'s `NDK_TOOLCHAIN_BIN` currently hardcodes an exact NDK
+  version/path (see that file) - update it if your installed NDK differs.
+- The Rust Android targets, for the *host* rustc buck2 invokes directly
+  (there's no separate Android-specific rustc/cargo install - buck2 just
+  passes `--target <triple>` and an NDK linker):
   ```sh
   rustup target add aarch64-linux-android x86_64-linux-android
   ```
-  If you also have Homebrew's own `cargo`/`rustc` formula installed and its
-  `bin` dir earlier in `$PATH` than rustup's, cross builds fail with `error[E0463]:
-  can't find crate for core` even with the targets correctly installed -
-  brew's cargo doesn't know about rustup's targets. Make sure
-  `$HOME/.cargo/bin` (or wherever your rustup shims live) comes first in
-  `$PATH`.
 
-Note this list does **not** include Android Studio. gtk-android-builder's
-own docs list it as a prerequisite purely so its icon generator (`Svg2Avd`)
-can reuse jars from it to convert SVG → Android vector drawable; this repo
-sidesteps that entirely by hand-authoring the vector drawables directly
-(`data/icons/*.xml`) and declaring them `type="avd"` in `pixiewood.xml`,
-which pixiewood copies in verbatim with no conversion step. See the comment
-in `data/icons/arelm-foreground.xml`.
+Note this list does **not** include Android Studio, and does **not**
+include `cargo` (only `rustc` itself, via the targets above - buck2 invokes
+`rustc` directly). gtk-android-builder's own docs list Android Studio as a
+prerequisite purely so its icon generator (`Svg2Avd`) can reuse jars from it
+to convert SVG → Android vector drawable; this repo sidesteps that entirely
+by hand-authoring the vector drawables directly (`data/icons/*.xml`) and
+declaring them `type="avd"` in `pixiewood.xml`, which pixiewood copies in
+verbatim with no conversion step. See the comment in
+`data/icons/arelm-foreground.xml`.
 
 Then, from this directory:
 
@@ -129,76 +150,92 @@ pixiewood build
 - `generate` reads `pixiewood.xml` + the configured build dirs and produces
   the Gradle/Android Studio project under `.pixiewood/android/`.
 - `build` runs `ninja` in each per-arch build dir (which is where
-  `meson.build`'s `custom_target` invokes `cargo build --target
-  {aarch64,x86_64}-linux-android`), installs the runtime outputs into
-  `.pixiewood/root`, and finally runs `./gradlew assembleDebug` to produce
-  an APK under `.pixiewood/android/app/build/outputs/apk/`.
+  `meson.build`'s `custom_target` invokes `buck2 build
+  //:arelm-lib[cdylib] --target-platforms //platforms:android-{aarch64,x86_64}`),
+  installs the runtime outputs into `.pixiewood/root`, and finally runs
+  `./gradlew assembleDebug` to produce an APK under
+  `.pixiewood/android/app/build/outputs/apk/`.
 
-### How `meson.build` wires cargo to pixiewood's cross-built GTK
+## How the buck2 build is put together
 
-The tricky part isn't invoking `cargo build --target
-aarch64-linux-android` - it's that the `gtk4`/`glib`/etc. Rust crates need
-to *link against* pixiewood's own from-source, Android-patched GTK build,
-which doesn't exist as an installed system package on Android and, at the
-point ninja would run our `custom_target`, hasn't even been `meson
-install`-ed yet (pixiewood only does that after the whole `ninja` build
-finishes). `meson.build` handles this by, only when cross-compiling:
+- **`third-party/`** is the entire transitive dependency graph (relm4, the
+  gtk4-rs bindings, every `-sys` crate underneath them, and so on - about
+  90 crates) as real buck2 `rust_library`/`buildscript_run` targets,
+  generated by [reindeer](https://github.com/facebookincubator/reindeer)
+  from `Cargo.toml`/`Cargo.lock`. `third-party/vendor/` (the vendored crate
+  sources) and `third-party/BUCK` (the generated targets) are both
+  committed, so a fresh clone can `buck2 build` immediately with no network
+  access and no reindeer/cargo install needed. If you change
+  `Cargo.toml`/`Cargo.lock`, regenerate both with:
+  ```sh
+  reindeer vendor
+  reindeer buckify
+  ```
+  (reindeer's own config, `reindeer.toml`, sets `manifest_path =
+  "Cargo.toml"` since this repo's manifest lives at the repo root rather
+  than inside `third-party/` - reindeer's default assumes the latter, so
+  don't drop that line.)
+- **`third-party/fixups/*/fixups.toml`** patches individual crates' generated
+  build rules - most importantly, the GTK `-sys` crates (`gtk4-sys`,
+  `glib-sys`, etc.), whose `build.rs` shells out to `pkg-config` via the
+  `system-deps` crate. `rustc_link_lib`/`rustc_link_search` turn their
+  `cargo:rustc-link-lib=...` build-script output into real linker flags
+  buck2 understands; a `cfg(target_os = "android", target_arch = "...")`
+  platform fixup additionally sets `PKG_CONFIG_ALLOW_CROSS=1` and points
+  `PKG_CONFIG_PATH` at pixiewood's own per-ABI, from-source GTK4 build tree
+  (`.pixiewood/bin-<arch>/meson-uninstalled/`) instead of a system install
+  - `pkg-config` refuses to cross-compile-probe at all without the former,
+    and there is no system-installed GTK4 for Android in the first place.
+- **`third-party/PACKAGE`** tells reindeer's generated targets which
+  `reindeer.toml` platform (`linux-x86_64`, `android-aarch64`,
+  `android-x86_64`) is active for the current buck2 target configuration,
+  keyed off the same `//platforms:is-android-*` `config_setting`s
+  `toolchains/BUCK` and `BUCK` key off - this is what makes the
+  `cfg(...)`-gated fixups above actually apply only when cross-compiling.
+- **`toolchains/BUCK`** overrides both the `rust` and `cxx` system
+  toolchains to be NDK-aware: `rustc_target_triple` picks the right Android
+  triple, and (since buck2's rust rules always link through the *cxx*
+  toolchain's linker, not a `-Clinker=` rustc flag) the `cxx` toolchain's
+  `compiler`/`cxx_compiler`/`linker`/`archiver` point at the NDK's own
+  per-ABI clang/llvm-ar wrapper instead of the host's system compiler -
+  both `select()`-ed on `//platforms:is-android-{aarch64,x86_64}`.
+- **`BUCK`** (this directory) defines arelm's own `rust_library`
+  (`:arelm-lib`, exposing a `[cdylib]` subtarget - see
+  `@prelude//rust/rust_library.bzl`'s automatic per-crate-type subtargets)
+  and `rust_binary` (`:arelm`), both depending on `//third-party:relm4`.
+  Since none of the `-sys` crates' build scripts emit
+  `cargo:rustc-link-search` (only `-link-lib`), `:arelm-lib`/`:arelm` add
+  the missing `-L` search-path flags explicitly, `select()`-ed the same way
+  between the host's GTK4 install and pixiewood's per-ABI build tree.
 
-1. Depending on the actual `libgtk` build target GTK's own meson.build
-   exposes (via `subproject('gtk').get_variable('libgtk')`), so ninja
-   builds GTK - and transitively glib/pango/cairo/etc. - before us.
-2. Pointing `PKG_CONFIG_PATH` at `<builddir>/meson-uninstalled/`, where
-   every subproject's `pkg.generate()` call writes a `*-uninstalled.pc`
-   with `-L`/`-I` flags into the *build tree* as soon as it's configured -
-   exactly what the `gtk4-sys`/`glib-sys`/etc. crates' `system-deps`-based
-   build scripts need.
-3. Reusing the exact NDK clang meson itself resolved for this cross build
-   (`meson.get_compiler('c')`) as cargo's linker, via
-   `CARGO_TARGET_<TRIPLE>_LINKER`, instead of re-deriving the NDK's
-   directory layout independently.
+## What's been verified
 
-## What's actually been verified here
+**buck2 build, both desktop and Android:**
 
-The full pipeline has been run for real, end-to-end, and the resulting APK
-installed and exercised on a physical device:
+- `buck2 build //:arelm-lib //:arelm-lib[cdylib] //:arelm` succeeds against
+  the host's system GTK4 (via `pkg-config`), and the resulting `:arelm`
+  binary links cleanly (`ldd` resolves every GTK4 shared library, no
+  "not found" entries).
+- `buck2 build --target-platforms //platforms:android-aarch64
+  //:arelm-lib[cdylib]` (and the `android-x86_64` equivalent) both succeed,
+  cross-compiling the entire relm4/gtk4-rs stack - including every GTK
+  `-sys` crate's `pkg-config`-based build script - against pixiewood's
+  from-source Android GTK4 build. The resulting `.so` is a real `ELF 64-bit
+  ... ARM aarch64 ... for Android 31, built by NDK r27c`, linked against
+  `libgtk-4.so`/`libglib-2.0.so`/etc. with no host libraries leaking in
+  (confirmed via `file`/`readelf -d`).
+- `meson.build`'s `custom_target` (both the plain host path and a
+  simulated `--rust-target aarch64-linux-android --profile release`
+  invocation of `build-scripts/buck2-build-cdylib.sh` directly) produces
+  the same working `.so` in both cases.
 
-- `cargo build` / `cargo run` (`src/main.rs`, `src/app.rs`) compile clean
-  against a real GTK4 4.20 and pull in relm4 0.11 from crates.io.
-- `meson.build` - the *exact* file pixiewood drives - was run standalone
-  (`meson setup builddir . && meson compile -C builddir`) against the host's
-  GTK4 as a quick sanity check before involving pixiewood at all.
-- `pixiewood.xml` validates against the upstream `pixiewood.xsd` schema, and
-  `pixiewood prepare -s "$ANDROID_HOME" pixiewood.xml` ran for real for both
-  `aarch64` and `x86_64`: it wrote the `subprojects/*.wrap` files and ran
-  `meson setup` with pixiewood's Android cross files, cross-compiling
-  glib/fontconfig/gtk4's full from-source dependency chain against the NDK.
-- `pixiewood generate` produced a working Gradle/Android Studio project
-  under `.pixiewood/android/`, with the expected wiring confirmed by
-  reading the generated files directly: `AndroidManifest.xml`'s
-  `gtk.android.lib_name` meta-data pointing at `arelm`, `app/build.gradle`'s
-  `applicationId "com.example.arelm"`, and the hand-authored icon XML files
-  copied in verbatim as `res/drawable/ic_launcher_{foreground,monochrome}.xml`.
-- `pixiewood build` ran `ninja` per architecture (compiling the entire GTK4
-  stack - glib, pango, cairo, harfbuzz, fontconfig, gdk-pixbuf, gtk4 - from
-  source for Android, plus the `custom_target` that cross-compiles
-  `libarelm.so` via cargo), installed everything into `.pixiewood/root`, and
-  ran `./gradlew assembleDebug` to a clean `BUILD SUCCESSFUL`.
-- The resulting `app-arm64-v8a-debug.apk` was installed with `adb install`
-  and launched with `adb shell am start` on a physical **Pixel 6a (Android
-  16, arm64-v8a)**. `dumpsys` confirmed it as the foreground activity, and
-  on-device screenshots confirm the relm4 counter UI renders correctly and
-  responds to real touch input: tapping "Increment" three times took the
-  displayed count from 0 to 3.
-
-A few real issues were found and fixed along the way (see git history for
-details): a `pixiewood.xml` manifest bug where `build://{arch}/...` had been
-copied from gtk-android-builder's README as if `{arch}` were literal
-templating syntax (it's just doc-placeholder notation - pixiewood requires a
-real, concrete architecture name there); a missing `platforms;android-36`
-SDK install (the generated `build.gradle`'s `compileSdk` doesn't
-automatically match whatever platform you install first); and a PATH-
-ordering issue where Homebrew's own `cargo` shadowed rustup's, breaking
-Android cross-compilation despite the targets being correctly installed.
+**Not yet re-verified since the buck2 migration:** a full physical-device
+run - `pixiewood build` driving buck2 end-to-end, through to an installed,
+launched APK - as was previously done with the old cargo-based build (see
+git history for that run's details, against a Pixel 6a). The buck2-built
+Android `.so` above hasn't yet been carried through `pixiewood build`'s
+Gradle packaging step and installed on-device; that's the next thing to
+confirm.
 
 ## License
 

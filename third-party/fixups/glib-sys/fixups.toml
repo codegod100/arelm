@@ -1,0 +1,31 @@
+# This -sys crate's build.rs uses `system-deps`/pkg-config to locate the
+# system GTK4 stack; besides the `--cfg=system_deps_have_*` flags reindeer
+# captures by default, its build.rs also emits `cargo:rustc-link-lib=`/
+# `cargo:rustc-link-search=` directives that must be translated into real
+# `-l`/`-L` rustc flags for the final binary/cdylib link to find libgtk-4,
+# libglib-2.0, etc - reindeer doesn't do this by default.
+[buildscript.run]
+rustc_link_lib = true
+rustc_link_search = true
+
+# Cross-compiling for Android: system-deps' build.rs shells out to pkg-config
+# (via the `pkg-config` crate), which refuses to probe for a non-host TARGET
+# unless PKG_CONFIG_ALLOW_CROSS=1 is set - without it, pkg-config just prints
+# "pkg-config has not been configured to support cross-compilation" to stdout
+# and exits 1 (this is what was silently failing
+# gtk4-sys-0.11-build-script-run under //platforms:android-* - buck2's
+# buildscript_run.py swallows a failed build script's captured stdout instead
+# of surfacing it, which is why the buck2 failure and a hand reproduction both
+# showed empty stdout/stderr). PKG_CONFIG_PATH points at pixiewood's own
+# per-ABI meson-uninstalled dir (see .pixiewood/bin-<arch>/meson-uninstalled/
+# *.pc - each is a `Libs: -L<pixiewood build dir> -l<name>` pointing straight
+# at pixiewood's from-source Android GTK4 build outputs, no system install
+# needed). Hardcoded absolute paths, same non-hermetic-but-consistent
+# convention as HOMEBREW_GTK4_LIB_DIRS in the root BUCK file.
+['cfg(all(target_os = "android", target_arch = "aarch64"))'.buildscript.run.env]
+PKG_CONFIG_ALLOW_CROSS = "1"
+PKG_CONFIG_PATH = "/home/nandi/code/arelm/.pixiewood/bin-aarch64/meson-uninstalled"
+
+['cfg(all(target_os = "android", target_arch = "x86_64"))'.buildscript.run.env]
+PKG_CONFIG_ALLOW_CROSS = "1"
+PKG_CONFIG_PATH = "/home/nandi/code/arelm/.pixiewood/bin-x86_64/meson-uninstalled"

@@ -1,0 +1,62 @@
+# Target platforms for Android cross-compilation. These describe what we're
+# BUILDING FOR, not what we're building ON - the execution platform (the
+# machine actually running rustc/clang, still this Linux x86_64 host) stays
+# `prelude//platforms:default` (see root .buckconfig's `[build]
+# execution_platforms`); only the target configuration changes when you pass
+# `--target-platforms=//platforms:android-aarch64` (or -x86_64).
+#
+# `prelude//os/constraints:os[android]`, `prelude//cpu/constraints:cpu[arm64]`,
+# `prelude//cpu/constraints:cpu[x86_64]` are constraint_values already defined
+# by the bundled prelude's unified `constraint()` rules (see
+# prelude//os/constraints/BUCK, prelude//cpu/constraints/BUCK) - no need to
+# declare new constraint_setting/constraint_value here. Note this is NOT the
+# same as `prelude//os:android`/`prelude//cpu:arm64` (those are `config_setting`
+# aliases meant as select() keys, not ConstraintValueInfo providers - only the
+# `constraints` subtargets work inside a platform()'s `constraint_values`).
+#
+# toolchains/BUCK's NDK-based rust toolchains and third-party/PACKAGE's
+# reindeer platform selector both key off these same constraint_values, so
+# a single `--target-platforms` flag drives toolchain selection, the
+# gtk4-rs -sys crates' select()-ed BUCK targets, and this repo's own
+# `arelm-lib`'s `-L`/`-l` flags all at once.
+platform(
+    name = "android-aarch64",
+    constraint_values = [
+        "prelude//os/constraints:os[android]",
+        "prelude//cpu/constraints:cpu[arm64]",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+platform(
+    name = "android-x86_64",
+    constraint_values = [
+        "prelude//os/constraints:os[android]",
+        "prelude//cpu/constraints:cpu[x86_64]",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+# `platform()` targets aren't themselves valid `select()` keys (they carry a
+# ConfigurationInfo, not the ConfigurationInfo-with-nothing-else shape a
+# `config_setting` provides) - `select()`s elsewhere (root BUCK's
+# `_rust_toolchain`/`GTK4_LIB_DIRS`, third-party/PACKAGE's reindeer platform
+# selector) key off these `config_setting`s instead, which bundle the same
+# constraint_values as the platform()s above.
+config_setting(
+    name = "is-android-aarch64",
+    constraint_values = [
+        "prelude//os/constraints:os[android]",
+        "prelude//cpu/constraints:cpu[arm64]",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+config_setting(
+    name = "is-android-x86_64",
+    constraint_values = [
+        "prelude//os/constraints:os[android]",
+        "prelude//cpu/constraints:cpu[x86_64]",
+    ],
+    visibility = ["PUBLIC"],
+)

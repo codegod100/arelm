@@ -15,7 +15,7 @@ project(
 # system-installed GTK4 instead, which is what makes
 #   meson setup builddir . && meson compile -C builddir
 # on this exact file a fast, fully offline way to sanity-check the
-# meson<->cargo wiring below, without pixiewood or an Android toolchain.
+# meson<->buck2 wiring below, without pixiewood or an Android toolchain.
 gtk_dep = dependency('gtk4')
 
 app_id = 'com.example.Arelm'
@@ -33,13 +33,12 @@ configure_file(
   copy: true,
 )
 
-cargo_wrapper = find_program('build-scripts/cargo-build-cdylib.sh')
+buck2_wrapper = find_program('build-scripts/buck2-build-cdylib.sh')
 
 # Only the real Android cross-build performed by `pixiewood build` (via
 # arch/*.cross + android.cross, see gtk-android-builder) needs any of this.
 rust_target = ''
 build_deps = []
-extra_env = environment()
 
 if meson.is_cross_build()
   cpu_family = host_machine.cpu_family()
@@ -58,29 +57,17 @@ if meson.is_cross_build()
   # `meson.override_dependency('gtk4', libgtk_dep)`), so we can make ninja
   # build it - and therefore glib/pango/cairo/gdk-pixbuf/etc. too, since
   # libgtk links all of those - *before* it runs us. Without an explicit
-  # `depends:` edge here, ninja is free to run our custom_target and GTK's
-  # own build in parallel, and cargo's link step would go looking for a
+  # `depends:` edge here, ninja is free to run our custom_target and buck2's
+  # own build in parallel, and buck2's link step would go looking for a
   # libgtk-4.so (and friends) that doesn't exist yet.
+  #
+  # Unlike the old cargo-based build, buck2 needs no NDK-linker or
+  # PKG_CONFIG_PATH environment threaded through from meson here - both are
+  # already hardcoded per-ABI in toolchains/BUCK and
+  # third-party/fixups/*/fixups.toml (buck2-build-cdylib.sh just maps this
+  # rust_target to the matching `//platforms:android-*` and lets those BUCK
+  # files take it from there).
   build_deps += subproject('gtk').get_variable('libgtk')
-
-  # meson already resolved the exact per-ABI, per-API-level NDK clang for
-  # this cross build (see arch/*.cross + android.cross). Reuse that same
-  # compiler as rustc's linker instead of re-deriving the NDK layout
-  # ourselves, so this can never drift from what meson/pixiewood actually
-  # used to build GTK itself.
-  android_cc = meson.get_compiler('c').cmd_array()[0]
-  linker_env = 'CARGO_TARGET_' + rust_target.to_upper().replace('-', '_') + '_LINKER'
-  extra_env.set(linker_env, android_cc)
-
-  # Subprojects' `pkg.generate()` calls write `*-uninstalled.pc` files (with
-  # -L/-I flags pointing straight into the build tree) into this directory
-  # as soon as they're configured. This is how the gtk4-sys/glib-sys/etc.
-  # `system-deps`-based build scripts of the gtk4-rs crates find headers and
-  # libraries for a dependency that pixiewood hasn't `meson install`-ed
-  # anywhere on disk yet (that only happens after `ninja` finishes, in
-  # pixiewood's own `build` action).
-  extra_env.set('PKG_CONFIG_PATH', meson.global_build_root() / 'meson-uninstalled')
-  extra_env.set('PKG_CONFIG_ALLOW_CROSS', '1')
 endif
 
 # pixiewood's own `prepare` action only ever passes `--buildtype release` or
@@ -93,11 +80,8 @@ libarelm = custom_target('arelm',
   console: true,
   build_always_stale: true,
   depends: build_deps,
-  env: extra_env,
   command: [
-    cargo_wrapper,
-    '--manifest-path', meson.project_source_root() / 'Cargo.toml',
-    '--target-dir', meson.current_build_dir() / 'cargo-target',
+    buck2_wrapper,
     '--out', '@OUTPUT@',
     '--rust-target', rust_target,
     '--profile', profile,

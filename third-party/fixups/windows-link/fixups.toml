@@ -1,0 +1,5 @@
+# Doc comment does include_str!("../<file>") to embed a file from outside
+# src/ into rustdoc; reindeer's module-derived srcs glob doesn't pick these up.
+extra_srcs = [
+    "readme.md",
+]

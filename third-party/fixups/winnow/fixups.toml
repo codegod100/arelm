@@ -1,0 +1,5 @@
+# winnow's src/lib.rs doc comment does `include_str!("../examples/css/parser.rs")`
+# to embed an example in the crate's rustdoc. That file lives outside src/, so
+# reindeer's module-structure-derived `srcs` glob (precise_srcs) doesn't pick
+# it up by default - list it explicitly so it's present in the build sandbox.
+extra_srcs = ["examples/css/parser.rs", "README.md"]

@@ -1,0 +1,26 @@
+# Tells reindeer-generated targets in this package (third-party/BUCK) which
+# reindeer.toml `[platform.NAME]` to select() on, keyed off the same
+# `//platforms:is-android-*` config_settings the root BUCK file and
+# toolchains/BUCK's NDK-aware `toolchains//:rust` toolchain already key off
+# (see platforms/BUCK) - one `--target-platforms=` flag now drives toolchain
+# selection, this reindeer platform selection, and arelm's own -L/-l flags all
+# at once.
+#
+# Without this file, `reindeer buckify` has no way to know this repo has
+# non-default platforms (reindeer.toml's android-aarch64/android-x86_64
+# entries exist purely for feature-resolution purposes otherwise) and just
+# generates a single, non-select()-ed set of targets - which is what was
+# happening before this file existed: the Android cfg(...)-gated
+# `buildscript.run.env` PKG_CONFIG_PATH/PKG_CONFIG_ALLOW_CROSS added to the
+# GTK -sys crates' fixups.toml (see third-party/fixups/*/fixups.toml) never
+# showed up in the generated third-party/BUCK because reindeer only ever
+# evaluated the base (no-cfg) case.
+load("@prelude//rust:cargo_package.bzl", "set_reindeer_platforms")
+
+set_reindeer_platforms(
+    select({
+        "DEFAULT": "linux-x86_64",
+        "root//platforms:is-android-aarch64": "android-aarch64",
+        "root//platforms:is-android-x86_64": "android-x86_64",
+    }),
+)
