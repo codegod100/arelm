@@ -59,7 +59,7 @@ via meson's `android_exe_type`, since that machinery never runs for us.
 | `build-scripts/cargo-build-cdylib.sh` | The actual `cargo build` invocation meson's custom_target runs. |
 | `pixiewood.xml` | The pixiewood manifest (app id, icon, dependencies, build target, architectures). |
 | `data/com.example.Arelm.metainfo.xml` | AppStream metadata (app id, version, icon branding colour). |
-| `data/icons/*.svg` | Adaptive icon foreground/monochrome layers pixiewood's `generate` step converts to Android vector drawables. |
+| `data/icons/*.xml` | Adaptive icon foreground/monochrome layers, hand-authored as Android VectorDrawables directly (see "Avoiding the Android Studio dependency" below) - pixiewood's `generate` step copies these in verbatim. |
 
 ## Desktop development
 
@@ -92,14 +92,28 @@ This needs, on top of what `cargo run` needs above:
   for its own dependencies (Perl + XML/GLib bindings, Java 17, meson
   **≥ 1.9**, ninja, sassc, shaderc).
 - **Android SDK** + an **NDK** under it (pixiewood auto-detects the newest
-  one in `$ANDROID_HOME/ndk/`).
-- **Android Studio** installed, purely because pixiewood's icon generator
-  (`Svg2Avd`) reuses jar files from it to convert SVG → Android vector
-  drawable (`--android-studio-dir`, default `/opt/android-studio/`).
+  one in `$ANDROID_HOME/ndk/`). `platforms;android-36` and
+  `build-tools;36.0.0` specifically need to be installed via `sdkmanager` -
+  the generated `app/build.gradle`'s `compileSdk` is 36, which won't
+  necessarily match whatever platform you happened to install first.
 - The Rust Android targets:
   ```sh
   rustup target add aarch64-linux-android x86_64-linux-android
   ```
+  If you also have Homebrew's own `cargo`/`rustc` formula installed and its
+  `bin` dir earlier in `$PATH` than rustup's, cross builds fail with `error[E0463]:
+  can't find crate for core` even with the targets correctly installed -
+  brew's cargo doesn't know about rustup's targets. Make sure
+  `$HOME/.cargo/bin` (or wherever your rustup shims live) comes first in
+  `$PATH`.
+
+Note this list does **not** include Android Studio. gtk-android-builder's
+own docs list it as a prerequisite purely so its icon generator (`Svg2Avd`)
+can reuse jars from it to convert SVG → Android vector drawable; this repo
+sidesteps that entirely by hand-authoring the vector drawables directly
+(`data/icons/*.xml`) and declaring them `type="avd"` in `pixiewood.xml`,
+which pixiewood copies in verbatim with no conversion step. See the comment
+in `data/icons/arelm-foreground.xml`.
 
 Then, from this directory:
 
@@ -143,38 +157,48 @@ finishes). `meson.build` handles this by, only when cross-compiling:
    `CARGO_TARGET_<TRIPLE>_LINKER`, instead of re-deriving the NDK's
    directory layout independently.
 
-## What's actually been verified here, and what hasn't
+## What's actually been verified here
 
-This was put together and checked in a sandbox with no Android SDK, NDK, or
-Android Studio available, so the real `pixiewood prepare/generate/build`
-pipeline above has **not** been run end-to-end. What has been concretely
-verified instead:
+The full pipeline has been run for real, end-to-end, and the resulting APK
+installed and exercised on a physical device:
 
 - `cargo build` / `cargo run` (`src/main.rs`, `src/app.rs`) compile clean
   against a real GTK4 4.20 and pull in relm4 0.11 from crates.io.
-- `meson.build` - the *exact* file pixiewood would drive - was run for
-  real: `meson setup builddir . && meson compile -C builddir` successfully
-  invoked `build-scripts/cargo-build-cdylib.sh`, which built `libarelm.so`
-  via cargo and meson placed it as `custom_target`'s declared output; `meson
-  install --tags runtime` then installed it correctly (meson's install-tag
-  auto-guesser recognises a `.so` under `libdir` as tag `runtime`, so no
-  file was silently skipped by pixiewood's `--tags runtime` install).
-- `pixiewood.xml` validates against the upstream `pixiewood.xsd` schema.
-- The `libgtk` subproject-variable dependency and
-  `meson.override_dependency('gtk4', libgtk_dep)` wiring referenced above
-  were confirmed by reading GTK's actual `meson.build`
-  (`gitlab.gnome.org/GNOME/gtk`), not assumed.
+- `meson.build` - the *exact* file pixiewood drives - was run standalone
+  (`meson setup builddir . && meson compile -C builddir`) against the host's
+  GTK4 as a quick sanity check before involving pixiewood at all.
+- `pixiewood.xml` validates against the upstream `pixiewood.xsd` schema, and
+  `pixiewood prepare -s "$ANDROID_HOME" pixiewood.xml` ran for real for both
+  `aarch64` and `x86_64`: it wrote the `subprojects/*.wrap` files and ran
+  `meson setup` with pixiewood's Android cross files, cross-compiling
+  glib/fontconfig/gtk4's full from-source dependency chain against the NDK.
+- `pixiewood generate` produced a working Gradle/Android Studio project
+  under `.pixiewood/android/`, with the expected wiring confirmed by
+  reading the generated files directly: `AndroidManifest.xml`'s
+  `gtk.android.lib_name` meta-data pointing at `arelm`, `app/build.gradle`'s
+  `applicationId "com.example.arelm"`, and the hand-authored icon XML files
+  copied in verbatim as `res/drawable/ic_launcher_{foreground,monochrome}.xml`.
+- `pixiewood build` ran `ninja` per architecture (compiling the entire GTK4
+  stack - glib, pango, cairo, harfbuzz, fontconfig, gdk-pixbuf, gtk4 - from
+  source for Android, plus the `custom_target` that cross-compiles
+  `libarelm.so` via cargo), installed everything into `.pixiewood/root`, and
+  ran `./gradlew assembleDebug` to a clean `BUILD SUCCESSFUL`.
+- The resulting `app-arm64-v8a-debug.apk` was installed with `adb install`
+  and launched with `adb shell am start` on a physical **Pixel 6a (Android
+  16, arm64-v8a)**. `dumpsys` confirmed it as the foreground activity, and
+  on-device screenshots confirm the relm4 counter UI renders correctly and
+  responds to real touch input: tapping "Increment" three times took the
+  displayed count from 0 to 3.
 
-What's *not* verified, because it needs tooling this sandbox doesn't have:
-
-- An actual cross-compiled build against pixiewood's Android-patched GTK
-  subproject (this would also mean building GTK, glib, cairo, pango,
-  harfbuzz, fontconfig, gdk-pixbuf from source for Android - a very long
-  build even with the toolchain available).
-- Running `pixiewood generate`/`build` for real, and therefore whether the
-  generated Gradle project actually assembles and installs on-device.
-- The `Svg2Avd`-based icon generation, which needs real Android Studio
-  jars.
+A few real issues were found and fixed along the way (see git history for
+details): a `pixiewood.xml` manifest bug where `build://{arch}/...` had been
+copied from gtk-android-builder's README as if `{arch}` were literal
+templating syntax (it's just doc-placeholder notation - pixiewood requires a
+real, concrete architecture name there); a missing `platforms;android-36`
+SDK install (the generated `build.gradle`'s `compileSdk` doesn't
+automatically match whatever platform you install first); and a PATH-
+ordering issue where Homebrew's own `cargo` shadowed rustup's, breaking
+Android cross-compilation despite the targets being correctly installed.
 
 ## License
 

@@ -11,3 +11,11 @@
 # `pixiewood prepare` writes subprojects/{glib,fontconfig,gtk}.wrap here and
 # meson fetches/builds the actual sources into the same directory.
 /subprojects/
+
+# meson native-file written by `meson setup` with this machine's absolute
+# paths baked in (cross-file locations, etc.) - not portable, regenerated
+# by prepare/setup.
+/.buildconfig
+
+# Claude Code's own local session/settings state.
+/.claude/

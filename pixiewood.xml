@@ -4,8 +4,9 @@
   Format" docs (https://github.com/sp1ritCS/gtk-android-builder#pixiewood-format)
   and pixiewood.xsd for the schema this follows.
 
-  Build with (on a machine that has the Android SDK/NDK, Android Studio and
-  meson >=1.9 installed - see README.md):
+  Build with (on a machine that has the Android SDK/NDK and meson >=1.9
+  installed - see README.md; Android Studio is *not* required, despite
+  gtk-android-builder's own docs listing it as a prerequisite):
     pixiewood prepare -s "$ANDROID_HOME" pixiewood.xml
     pixiewood generate
     pixiewood build
@@ -17,8 +18,17 @@
 			by meson.build's `configure_file()` call, from
 			data/com.example.Arelm.metainfo.xml - see the comment there for
 			why it has to be a build product rather than a plain src:// path.
+
+			The leading path segment after `build://` picks which per-arch
+			build dir (.pixiewood/bin-<arch>) pixiewood resolves this from -
+			it's a real arch name, not a template variable (the gtk-android-
+			builder README's "{arch}" in its own example is the same doc
+			placeholder convention as its neighboring
+			"{path/to/(localized)/appstream/manifest.xml}", not literal
+			syntax pixiewood substitutes). Content is identical between
+			architectures here, so any one of the built archs works.
 		-->
-		<xi:include href="build://{arch}/com.example.Arelm.metainfo.xml" parse="xml"/>
+		<xi:include href="build://aarch64/com.example.Arelm.metainfo.xml" parse="xml"/>
 	</metainfo>
 	<style>
 		<!-- Plain GTK, no libadwaita - keeps the <dependencies> list below
@@ -26,9 +36,13 @@
 		     box (glib, fontconfig, gtk). -->
 		<theme name="gtk"/>
 		<icon type="generate">
-			<drawable target="foreground" scale=".55" type="svg" path="src://data/icons/arelm.svg"/>
+			<!-- Hand-authored Android VectorDrawables, not SVG - type="avd"
+			     drawables are copied verbatim by pixiewood (no Svg2Avd
+			     conversion), so this needs no Android Studio install. See
+			     the comments in data/icons/arelm-foreground.xml. -->
+			<drawable target="foreground" type="avd" path="src://data/icons/arelm-foreground.xml"/>
 			<color target="background">#1e1b4b</color>
-			<drawable target="monochrome" scale=".55" type="svg" path="src://data/icons/arelm-symbolic.svg"/>
+			<drawable target="monochrome" type="avd" path="src://data/icons/arelm-monochrome.xml"/>
 		</icon>
 	</style>
 	<dependencies>
