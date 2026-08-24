@@ -1,9 +1,10 @@
 # arelm
 
-A proof-of-concept that packages a [relm4](https://relm4.org/) (reactive
-Rust/GTK4) application for Android using
+A reusable Buck2 cell for packaging [relm4](https://relm4.org/) (reactive
+Rust/GTK4) applications for Android using
 [gtk-android-builder](https://github.com/sp1ritCS/gtk-android-builder)
-("pixiewood").
+("pixiewood"). The counter is an integration example; consuming cells own
+their UI, application ID, Android entrypoint, manifest, and branding.
 
 It's one small counter component, compiled twice from the same source:
 
@@ -32,7 +33,7 @@ and calls after JNI/GLib setup.
 relm4 apps aren't meson/C projects, they're **Rust** projects built with
 buck2. So instead of using meson's C frontend at all, `meson.build` here
 defines a `custom_target()` that shells out to `buck2 build
-//:arelm-lib[cdylib]` for the right Android target platform, and installs
+//:arelm-example-lib[cdylib]` for the right Android target platform, and installs
 the resulting `.so` exactly where pixiewood expects it
 (`get_option('libdir')`, which pixiewood's cross files repoint at
 `lib/<abi>/` for the APK's `jniLibs`). Rust supplies the ABI contract
@@ -49,7 +50,7 @@ via meson's `android_exe_type`, since that machinery never runs for us.
                                    cfg(target_os = "android"))
                     │                            │
             `buck2 run //:arelm`        `buck2 build
-                                     //:arelm-lib[cdylib]`,
+                                     //:arelm-example-lib[cdylib]`,
                                      cross-compiled against
                                      `//platforms:android-
                                      {aarch64,x86_64}`, driven
@@ -66,16 +67,16 @@ via meson's `android_exe_type`, since that machinery never runs for us.
 
 | Path | Purpose |
 |---|---|
-| `src/app.rs` | The actual relm4 UI (a counter). GTK4 + libadwaita. |
-| `src/main.rs` | Desktop entrypoint (`buck2 run //:arelm`). |
-| `src/android.rs` | Android cdylib entrypoint: exports the C `main` pixiewood/GTK's Android glue calls. |
-| `BUCK` | arelm's own `rust_library`/`rust_binary` targets (see "How the buck2 build is put together" below). |
-| `example/` | A second Buck2 cell that consumes this one: `buck2 run example//:app` links `root//:arelm-lib`. |
+| `src/lib.rs` | Public application-neutral support library and version-coherent Relm4 re-export. |
+| `src/example_lib.rs`, `src/app.rs` | Private counter integration example. |
+| `src/main.rs`, `src/android.rs` | Example-owned desktop and Android entrypoints. |
+| `BUCK` | Public `arelm-lib` plus private example application targets. |
+| `example/` | A second Buck2 cell proving consumers own their UI and app ID while linking `root//:arelm-lib`. |
 | `platforms/BUCK` | `platform()`/`config_setting()` targets for `android-aarch64`/`android-x86_64`, keying every other `select()` in this repo. |
 | `toolchains/BUCK` | The NDK-aware `rust`/`cxx` toolchains buck2 uses to actually cross-compile and link for Android. |
 | `reindeer.toml`, `third-party/` | reindeer's config, fixups, vendored crate sources, and the generated `third-party/BUCK` - the entire third-party dependency graph as real buck2 targets. See below. |
-| `meson.build` | Wraps `buck2 build //:arelm-lib[cdylib]` in a `custom_target` pixiewood can build & install like any other meson target. |
-| `build-scripts/buck2-build-cdylib.sh` | The actual `buck2 build` invocation meson's custom_target runs. |
+| `meson.build` | Example packaging project, passing its cdylib target to the generic wrapper. |
+| `build-scripts/buck2-build-cdylib.sh` | Generic wrapper accepting a target and consuming project root. |
 | `pixiewood.xml` | The pixiewood manifest (app id, icon, dependencies, build target, architectures). |
 | `data/com.example.Arelm.metainfo.xml` | AppStream metadata (app id, version, icon branding colour). |
 | `data/icons/*.xml` | Adaptive icon foreground/monochrome layers, hand-authored as Android VectorDrawables directly (see "Avoiding the Android Studio dependency" below) - pixiewood's `generate` step copies these in verbatim. |
@@ -109,7 +110,7 @@ meson compile -C builddir
 On a plain host build (no cross file), `dependency('gtk4')` in
 `meson.build` resolves to your system GTK4 instead of pixiewood's
 Android-cross-built subproject, so this works standalone and fast - meson
-just shells out to `buck2 build //:arelm-lib[cdylib]` with no
+just shells out to `buck2 build //:arelm-example-lib[cdylib]` with no
 `--target-platforms` override, which resolves to your host platform.
 
 ## Building the Android package
@@ -159,7 +160,7 @@ pixiewood build
   the Gradle/Android Studio project under `.pixiewood/android/`.
 - `build` runs `ninja` in each per-arch build dir (which is where
   `meson.build`'s `custom_target` invokes `buck2 build
-  //:arelm-lib[cdylib] --target-platforms //platforms:android-{aarch64,x86_64}`),
+  //:arelm-example-lib[cdylib] --target-platforms //platforms:android-{aarch64,x86_64}`),
   installs the runtime outputs into `.pixiewood/root`, and finally runs
   `./gradlew assembleDebug` to produce an APK under
   `.pixiewood/android/app/build/outputs/apk/`.

@@ -11,6 +11,7 @@
 //!     GTK-on-Android glue that pixiewood packages into the APK.
 //! Same UI code, two entrypoints.
 
+use arelm::relm4;
 use relm4::adw;
 use relm4::adw::prelude::*;
 use relm4::gtk;

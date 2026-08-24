@@ -21,10 +21,16 @@ set -euo pipefail
 out=""
 rust_target=""
 profile="dev"
+target=""
+project_root=""
+target_platform=""
 
 while [ $# -gt 0 ]; do
 	case "$1" in
 	--out) out="$2"; shift 2 ;;
+	--target) target="$2"; shift 2 ;;
+	--project-root) project_root="$2"; shift 2 ;;
+	--target-platform) target_platform="$2"; shift 2 ;;
 	--rust-target) rust_target="$2"; shift 2 ;;
 	--profile) profile="$2"; shift 2 ;;
 	*)
@@ -36,6 +42,10 @@ done
 
 if [ -z "$out" ]; then
 	echo "buck2-build-cdylib.sh: missing required --out" >&2
+	exit 1
+fi
+if [ -z "$target" ]; then
+	echo "buck2-build-cdylib.sh: missing required --target" >&2
 	exit 1
 fi
 
@@ -53,20 +63,24 @@ esac
 # (build-scripts/../ = repo root, where .buckconfig lives) before invoking
 # it.
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$script_dir/.."
+if [ -z "$project_root" ]; then
+	project_root="$script_dir/.."
+fi
+cd "$project_root"
 
-buck2_args=(build "//:arelm-lib[cdylib]" --show-full-output)
+buck2_args=(build "$target" --show-full-output)
 
-target_platform=""
-case "$rust_target" in
-"") ;; # host build, no override
-aarch64-linux-android) target_platform="//platforms:android-aarch64" ;;
-x86_64-linux-android) target_platform="//platforms:android-x86_64" ;;
-*)
-	echo "buck2-build-cdylib.sh: no buck2 platform() known for rust target '$rust_target'" >&2
-	exit 1
-	;;
-esac
+if [ -z "$target_platform" ]; then
+	case "$rust_target" in
+	"") ;; # host build, no override
+	aarch64-linux-android) target_platform="//platforms:android-aarch64" ;;
+	x86_64-linux-android) target_platform="//platforms:android-x86_64" ;;
+	*)
+		echo "buck2-build-cdylib.sh: no buck2 platform() known for rust target '$rust_target'" >&2
+		exit 1
+		;;
+	esac
+fi
 if [ -n "$target_platform" ]; then
 	buck2_args+=(--target-platforms "$target_platform")
 fi

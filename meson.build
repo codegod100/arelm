@@ -84,6 +84,8 @@ libarelm = custom_target('arelm',
   depends: build_deps,
   command: [
     buck2_wrapper,
+    '--target', '//:arelm-example-lib[cdylib]',
+    '--project-root', meson.project_source_root(),
     '--out', '@OUTPUT@',
     '--rust-target', rust_target,
     '--profile', profile,

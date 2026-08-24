@@ -1,12 +1,11 @@
-# arelm's own crate: one `rust_library` (mirrors Cargo.toml's single `[lib]`
-# with `crate-type = ["cdylib", "rlib"]`) plus one `rust_binary` for the
-# desktop entrypoint. Every crate-type buck2's rust rules can produce from a
-# single `rust_library` is exposed as a named subtarget automatically (see
-# @prelude//rust/rust_library.bzl's `_SUB_TARGET_BUILD_LANG_STYLE`) - no
-# separate target or `crate_type` attribute needed:
+# Arelm exposes an application-neutral support library. The counter is a
+# private example application with its own UI, app ID, entrypoints and cdylib.
+# Every crate-type buck2's rust rules can produce from a rust_library is
+# exposed as a named subtarget automatically:
 #
 #  - `buck2 build //:arelm-lib`          - plain rlib (default output).
-#  - `buck2 build //:arelm-lib[cdylib]`  - the cdylib pixiewood/GTK's
+#  - `buck2 build //:arelm-example-lib[cdylib]`
+#                                        - the example cdylib pixiewood/GTK's
 #                                          Android glue loads via JNI, cross-
 #                                          compiled per Android ABI by
 #                                          selecting `platforms//:android-
@@ -17,7 +16,7 @@
 #                                          `#[cfg(target_os = "android")]`
 #                                          when actually building for one of
 #                                          those platforms).
-#  - `buck2 run //:arelm`                - the desktop binary, replacing
+#  - `buck2 run //:arelm`                - the example desktop binary
 #                                          `cargo run`.
 #
 # Both link against the same third-party/BUCK (reindeer-buckified) crate
@@ -113,13 +112,23 @@ RUSTC_RELEASE_FLAGS = ["-Copt-level=3"] if read_root_config("arelm", "release", 
 
 rust_library(
     name = "arelm-lib",
-    srcs = ["src/android.rs", "src/app.rs", "src/lib.rs"],
+    srcs = ["src/lib.rs"],
     crate = "arelm",
     crate_root = "src/lib.rs",
     edition = "2021",
-    rustc_flags = GTK4_LIB_DIRS + RUSTC_RELEASE_FLAGS,
     visibility = ["PUBLIC"],
     deps = ["//third-party:relm4"],
+)
+
+rust_library(
+    name = "arelm-example-lib",
+    srcs = ["src/android.rs", "src/app.rs", "src/example_lib.rs"],
+    crate = "arelm_example",
+    crate_root = "src/example_lib.rs",
+    edition = "2021",
+    rustc_flags = GTK4_LIB_DIRS + RUSTC_RELEASE_FLAGS,
+    visibility = [],
+    deps = [":arelm-lib"],
 )
 
 rust_binary(
@@ -130,10 +139,5 @@ rust_binary(
     edition = "2021",
     rustc_flags = HOMEBREW_GTK4_LIB_DIRS,
     visibility = ["PUBLIC"],
-    # Cargo auto-links a package's own `[lib]` into its `[[bin]]` by crate
-    # name (both are named "arelm" here; src/main.rs calls `arelm::run()`
-    # as if it were an external crate) - buck2 has no equivalent implicit
-    # wiring, so depend on `:arelm-lib` explicitly instead of duplicating
-    # app.rs into this target the way the first draft did.
-    deps = [":arelm-lib"],
+    deps = [":arelm-example-lib"],
 )

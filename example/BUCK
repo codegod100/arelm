@@ -1,6 +1,6 @@
-# Downstream-style consumer of this repo's root cell. The only arelm
-# dependency is `root//:arelm-lib` — the same public rust_library the desktop
-# `//:arelm` binary and the Android cdylib both wrap.
+# Downstream-style consumer of this repo's root cell. The public library
+# provides the version-coherent Relm4 dependency graph without bringing in
+# Arelm's counter application, app ID, entrypoint, or branding.
 #
 # GTK `-L` search paths have to sit on the *final* rustc/link invocation (the
 # -sys crates embed `-l` via rlib metadata, but not `-L`; see the comment on

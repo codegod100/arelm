@@ -6,5 +6,5 @@
 //! possible to iterate on the relm4 UI locally with a plain `cargo run`
 //! before ever touching the Android toolchain.
 fn main() {
-    arelm::run();
+    arelm_example::run();
 }
