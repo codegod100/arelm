@@ -1,9 +1,9 @@
 //! The actual relm4 application: a small counter component.
 //!
-//! This module is deliberately plain gtk4 (no libadwaita) so the pixiewood
-//! manifest only needs to declare `glib` + `fontconfig` + `gtk` as
-//! dependencies (see `pixiewood.xml`), matching what gtk-android-builder
-//! ships wraps for out of the box.
+//! Built on libadwaita (`adw::ApplicationWindow` + `HeaderBar` + `Clamp`)
+//! so desktop and Android share Adwaita styling. pixiewood.xml
+//! declares `libadwaita` next to `glib`/`fontconfig`/`gtk`; gtk-android-builder
+//! ships a wrap for it.
 //!
 //! It is compiled into both:
 //!   - the desktop `arelm` binary (src/main.rs), and
@@ -11,9 +11,10 @@
 //!     GTK-on-Android glue that pixiewood packages into the APK.
 //! Same UI code, two entrypoints.
 
+use relm4::adw;
+use relm4::adw::prelude::*;
 use relm4::gtk;
 use relm4::gtk::glib::clone;
-use relm4::gtk::prelude::*;
 use relm4::{ComponentParts, ComponentSender, SimpleComponent};
 
 pub struct AppModel {
@@ -34,14 +35,14 @@ impl SimpleComponent for AppModel {
     type Init = i32;
     type Input = AppMsg;
     type Output = ();
-    type Root = gtk::Window;
+    type Root = adw::ApplicationWindow;
     type Widgets = AppWidgets;
 
     fn init_root() -> Self::Root {
-        gtk::Window::builder()
+        adw::ApplicationWindow::builder()
             .title("arelm")
-            .default_width(320)
-            .default_height(200)
+            .default_width(360)
+            .default_height(280)
             .build()
     }
 
@@ -51,6 +52,16 @@ impl SimpleComponent for AppModel {
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
         let model = AppModel { counter };
+
+        // AdwApplicationWindow has no titlebar slot (gtk_window_set_titlebar
+        // aborts). HeaderBar lives in the content; ToolbarView is behind a
+        // newer gnome_* feature than relm4's default gnome_42.
+        let header = adw::HeaderBar::new();
+
+        let clamp = adw::Clamp::builder()
+            .maximum_size(280)
+            .tightening_threshold(200)
+            .build();
 
         let vbox = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
@@ -72,13 +83,23 @@ impl SimpleComponent for AppModel {
             .build();
 
         let inc_button = gtk::Button::with_label("Increment");
+        inc_button.add_css_class("suggested-action");
+        inc_button.add_css_class("pill");
         let dec_button = gtk::Button::with_label("Decrement");
+        dec_button.add_css_class("pill");
 
         button_box.append(&dec_button);
         button_box.append(&inc_button);
         vbox.append(&label);
         vbox.append(&button_box);
-        window.set_child(Some(&vbox));
+        clamp.set_child(Some(&vbox));
+
+        let content = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .build();
+        content.append(&header);
+        content.append(&clamp);
+        window.set_content(Some(&content));
 
         inc_button.connect_clicked(clone!(
             #[strong]

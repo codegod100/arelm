@@ -8,8 +8,8 @@ pub const APP_ID: &str = "com.example.Arelm";
 
 /// Shared entrypoint used by both the desktop binary and the Android cdylib.
 /// This is the call that, transitively, reaches `g_application_run()` -
-/// `RelmApp::run` builds a `gtk::Application` (a `gio::Application`
-/// subclass) and calls its `run()`.
+/// `RelmApp::run` builds an `adw::Application` (a `gtk::Application` /
+/// `gio::Application` subclass) and calls its `run()`.
 pub fn run() {
     let app = relm4::RelmApp::new(APP_ID);
     app.run::<app::AppModel>(0);

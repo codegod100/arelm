@@ -1,0 +1,22 @@
+# This -sys crate's build.rs uses `system-deps`/pkg-config to locate the
+# system libadwaita stack; besides the `--cfg=system_deps_have_*` flags
+# reindeer captures by default, its build.rs also emits
+# `cargo:rustc-link-lib=`/`cargo:rustc-link-search=` directives that must be
+# translated into real `-l`/`-L` rustc flags for the final binary/cdylib
+# link to find libadwaita-1, libgtk-4, etc - reindeer doesn't do this by
+# default.
+[buildscript.run]
+rustc_link_lib = true
+rustc_link_search = true
+
+# Cross-compiling for Android: same PKG_CONFIG_ALLOW_CROSS /
+# PKG_CONFIG_PATH story as gtk4-sys (see that crate's fixups.toml). After
+# pixiewood has built the libadwaita subproject, meson-uninstalled contains
+# libadwaita-1-uninstalled.pc pointing at the per-ABI .so.
+['cfg(all(target_os = "android", target_arch = "aarch64"))'.buildscript.run.env]
+PKG_CONFIG_ALLOW_CROSS = "1"
+PKG_CONFIG_PATH = "/home/nandi/code/arelm/.pixiewood/bin-aarch64/meson-uninstalled"
+
+['cfg(all(target_os = "android", target_arch = "x86_64"))'.buildscript.run.env]
+PKG_CONFIG_ALLOW_CROSS = "1"
+PKG_CONFIG_PATH = "/home/nandi/code/arelm/.pixiewood/bin-x86_64/meson-uninstalled"

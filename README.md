@@ -66,7 +66,7 @@ via meson's `android_exe_type`, since that machinery never runs for us.
 
 | Path | Purpose |
 |---|---|
-| `src/app.rs` | The actual relm4 UI (a counter). Plain GTK4, no libadwaita. |
+| `src/app.rs` | The actual relm4 UI (a counter). GTK4 + libadwaita. |
 | `src/main.rs` | Desktop entrypoint (`buck2 run //:arelm`). |
 | `src/android.rs` | Android cdylib entrypoint: exports the C `main` pixiewood/GTK's Android glue calls. |
 | `BUCK` | arelm's own `rust_library`/`rust_binary` targets (see "How the buck2 build is put together" below). |
@@ -152,7 +152,7 @@ pixiewood generate
 pixiewood build
 ```
 
-- `prepare` writes `subprojects/{glib,fontconfig,gtk}.wrap` (from
+- `prepare` writes `subprojects/{glib,fontconfig,gtk,libadwaita}.wrap` (from
   `<dependencies>` in `pixiewood.xml`) and runs `meson setup` twice, once
   per architecture, with pixiewood's Android cross files.
 - `generate` reads `pixiewood.xml` + the configured build dirs and produces

@@ -2,8 +2,9 @@
 ## Reindeer config for arelm's Cargo.toml.
 ##
 ## Vendors + buckifies Cargo.lock's transitive dependency graph (relm4 and
-## everything it pulls in - gtk4-rs bindings, the underlying -sys crates,
-## etc.) into third-party/BUCK as native rust_library targets, replacing
+## everything it pulls in - gtk4-rs / libadwaita bindings, the underlying
+## -sys crates, etc.) into third-party/BUCK as native rust_library targets,
+## replacing
 ## `cargo build`/`cargo run` with real buck2 targets for both the desktop
 ## dev flow and (via a second platform below) the Android cross build.
 ##

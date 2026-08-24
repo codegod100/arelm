@@ -40,6 +40,7 @@
 HOMEBREW_GTK4_LIB_DIRS = [
     "-L/home/linuxbrew/.linuxbrew/lib",
     "-L/home/linuxbrew/.linuxbrew/Cellar/gtk4/4.22.4/lib",
+    "-L/home/linuxbrew/.linuxbrew/Cellar/libadwaita/1.9.3/lib",
     "-L/home/linuxbrew/.linuxbrew/Cellar/pango/1.58.2/lib",
     "-L/home/linuxbrew/.linuxbrew/Cellar/harfbuzz/14.3.1/lib",
     "-L/home/linuxbrew/.linuxbrew/Cellar/cairo/1.18.4/lib",
@@ -60,6 +61,7 @@ HOMEBREW_GTK4_LIB_DIRS = [
 # instead of via a shared helper.
 PIXIEWOOD_AARCH64_LIB_DIRS = [
     "-L.pixiewood/bin-aarch64/subprojects/gtk/gtk",
+    "-L.pixiewood/bin-aarch64/subprojects/libadwaita/src",
     "-L.pixiewood/bin-aarch64/subprojects/glib/glib",
     "-L.pixiewood/bin-aarch64/subprojects/glib/gobject",
     "-L.pixiewood/bin-aarch64/subprojects/glib/gio",
@@ -74,6 +76,7 @@ PIXIEWOOD_AARCH64_LIB_DIRS = [
 
 PIXIEWOOD_X86_64_LIB_DIRS = [
     "-L.pixiewood/bin-x86_64/subprojects/gtk/gtk",
+    "-L.pixiewood/bin-x86_64/subprojects/libadwaita/src",
     "-L.pixiewood/bin-x86_64/subprojects/glib/glib",
     "-L.pixiewood/bin-x86_64/subprojects/glib/gobject",
     "-L.pixiewood/bin-x86_64/subprojects/glib/gio",

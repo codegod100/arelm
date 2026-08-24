@@ -19,10 +19,10 @@ name = "arelm"
 path = "src/main.rs"
 
 [dependencies]
-# relm4 re-exports the exact gtk4/gio/glib versions it was built against
-# (relm4::gtk, relm4::gtk::gio, ...) - depend only on relm4 to avoid version
-# skew between our crate and relm4's internals.
-relm4 = "0.11"
+# relm4 re-exports the exact gtk4/gio/glib/libadwaita versions it was built
+# against (relm4::gtk, relm4::adw, ...) - depend only on relm4 to avoid
+# version skew between our crate and relm4's internals.
+relm4 = { version = "0.11", features = ["libadwaita"] }
 
 [profile.release]
 opt-level = "z"

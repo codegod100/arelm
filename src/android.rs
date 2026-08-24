@@ -25,10 +25,10 @@ use std::os::raw::{c_char, c_int};
 
 #[no_mangle]
 pub extern "C" fn main(_argc: c_int, _argv: *mut *mut c_char, _envp: *mut *mut c_char) -> c_int {
-    // relm4's `RelmApp::run` builds a `gtk::Application` (a `gio::Application`
-    // subclass) and calls its `.run()`, which is what actually reaches
-    // `g_application_run()` on the C side - satisfying pixiewood's
-    // precondition above.
+    // relm4's `RelmApp::run` builds an `adw::Application` (a `gtk::Application`
+    // / `gio::Application` subclass) and calls its `.run()`, which is what
+    // actually reaches `g_application_run()` on the C side - satisfying
+    // pixiewood's precondition above.
     crate::run();
     0
 }

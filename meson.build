@@ -4,19 +4,21 @@ project(
   meson_version: '>=1.9',
 )
 
-# gtk-android-builder (pixiewood) writes subprojects/{glib,fontconfig,gtk}.wrap
-# for us - generated from the <dependencies> listed in pixiewood.xml - before
-# it ever runs `meson setup`. Each wrap declares `[provide] dependency_names
-# = ...`, so the plain dependency() calls below transparently resolve to
-# those subprojects *only when needed*, i.e. when cross-compiling for
-# Android, where there is no system GTK4 for pkg-config to find in the first
-# place. On a normal desktop host (no pixiewood, no cross file, no
-# subprojects/ directory) the very same calls just resolve to the
-# system-installed GTK4 instead, which is what makes
+# gtk-android-builder (pixiewood) writes
+# subprojects/{glib,fontconfig,gtk,libadwaita}.wrap for us - generated from
+# the <dependencies> listed in pixiewood.xml - before it ever runs `meson
+# setup`. Each wrap declares `[provide] dependency_names = ...`, so the
+# plain dependency() calls below transparently resolve to those subprojects
+# *only when needed*, i.e. when cross-compiling for Android, where there is
+# no system GTK4/libadwaita for pkg-config to find in the first place. On a
+# normal desktop host (no pixiewood, no cross file, no subprojects/
+# directory) the very same calls just resolve to the system-installed
+# GTK4/libadwaita instead, which is what makes
 #   meson setup builddir . && meson compile -C builddir
 # on this exact file a fast, fully offline way to sanity-check the
 # meson<->buck2 wiring below, without pixiewood or an Android toolchain.
 gtk_dep = dependency('gtk4')
+adw_dep = dependency('libadwaita-1')
 
 app_id = 'com.example.Arelm'
 
@@ -50,16 +52,15 @@ if meson.is_cross_build()
     error('no Rust target triple known for Android ABI: @0@'.format(cpu_family))
   endif
 
-  # `dependency('gtk4')` above resolved to gtk-android-builder's cross-built
-  # `gtk` subproject. Grab the actual shared_library() build target that
-  # GTK's own meson.build exposes as `libgtk` (alongside the `libgtk_dep` it
-  # derives from it and registers via
-  # `meson.override_dependency('gtk4', libgtk_dep)`), so we can make ninja
-  # build it - and therefore glib/pango/cairo/gdk-pixbuf/etc. too, since
-  # libgtk links all of those - *before* it runs us. Without an explicit
-  # `depends:` edge here, ninja is free to run our custom_target and buck2's
-  # own build in parallel, and buck2's link step would go looking for a
-  # libgtk-4.so (and friends) that doesn't exist yet.
+  # `dependency('gtk4')` / `dependency('libadwaita-1')` above resolved to
+  # gtk-android-builder's cross-built `gtk` / `libadwaita` subprojects. Grab
+  # the actual shared_library() build targets those meson.builds expose
+  # (`libgtk`, `libadwaita`) so we can make ninja build them - and therefore
+  # glib/pango/cairo/gdk-pixbuf/etc. too, since libgtk/libadwaita link all
+  # of those - *before* it runs us. Without an explicit `depends:` edge
+  # here, ninja is free to run our custom_target and buck2's own build in
+  # parallel, and buck2's link step would go looking for a libgtk-4.so /
+  # libadwaita-1.so (and friends) that doesn't exist yet.
   #
   # Unlike the old cargo-based build, buck2 needs no NDK-linker or
   # PKG_CONFIG_PATH environment threaded through from meson here - both are
@@ -68,6 +69,7 @@ if meson.is_cross_build()
   # rust_target to the matching `//platforms:android-*` and lets those BUCK
   # files take it from there).
   build_deps += subproject('gtk').get_variable('libgtk')
+  build_deps += subproject('libadwaita').get_variable('libadwaita')
 endif
 
 # pixiewood's own `prepare` action only ever passes `--buildtype release` or

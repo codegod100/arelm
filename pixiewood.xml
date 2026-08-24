@@ -31,10 +31,11 @@
 		<xi:include href="build://aarch64/com.example.Arelm.metainfo.xml" parse="xml"/>
 	</metainfo>
 	<style>
-		<!-- Plain GTK, no libadwaita - keeps the <dependencies> list below
-		     to exactly what gtk-android-builder ships wraps for out of the
-		     box (glib, fontconfig, gtk). -->
-		<theme name="gtk"/>
+		<!-- Adwaita theme + libadwaita wrap. gtk-android-builder ships both
+		     (`theme name="adw"` and prepare/wraps/libadwaita); the
+		     no-appstream patch is required so the wrap builds without a
+		     cross-compiled appstream. -->
+		<theme name="adw"/>
 		<icon type="generate">
 			<!-- Hand-authored Android VectorDrawables, not SVG - type="avd"
 			     drawables are copied verbatim by pixiewood (no Svg2Avd
@@ -51,6 +52,9 @@
 		</glib>
 		<fontconfig/>
 		<gtk/>
+		<libadwaita>
+			<patch>no-appstream</patch>
+		</libadwaita>
 	</dependencies>
 	<build target="arelm">
 		<!-- Must match the name of the custom_target() in meson.build -->
