@@ -17,12 +17,14 @@
 # crate still resolving the desktop-only `rustc_target_triple` default and
 # failing to configure for `//platforms:android-*` at all.
 #
-# `rustc_target_triple`/`rustc_flags` below are select()-ed on the same
-# prelude os/cpu constraints `//platforms:android-{aarch64,x86_64}` set (see
-# platforms/BUCK) - toolchain deps resolve using the requesting target's own
-# configuration, so this one toolchain target transparently cross-compiles
-# anything in the graph once you pass `--target-platforms=//platforms:
-# android-aarch64` (or -x86_64), no per-target opt-in needed.
+# `rustc_target_triple`/`rustc_flags` below are select()-ed on local
+# config_settings carrying the same prelude os/cpu constraints as
+# `//platforms:android-{aarch64,x86_64}` (see platforms/BUCK). Keeping the
+# selectors local is important when this repository is imported under a cell
+# name other than `root`: consumers do not have to recreate arelm's cell
+# aliases. Toolchain deps resolve using the requesting target's configuration,
+# so this one toolchain target transparently cross-compiles anything in the
+# graph once you pass the imported arelm platform, no per-target opt-in needed.
 load("@prelude//android/tools:jdk_system_image.bzl", "jdk_system_image")
 load("@prelude//tests:test_toolchain.bzl", "noop_test_toolchain")
 load("@prelude//toolchains:android.bzl", "android_sdk_tools", "system_android_toolchain")
@@ -91,27 +93,43 @@ NDK_TOOLCHAIN_BIN = "/home/linuxbrew/.linuxbrew/share/android-commandlinetools/n
 # `clang++` (this rule's untouched default) - which doesn't understand
 # `-fuse-ld=lld` the way the NDK's own clang wrapper does (it aborts with
 # "invalid linker name in argument '-fuse-ld=lld'"). Same
-# `root//platforms:is-android-*` select()s as toolchains//:rust below.
+# local `:is-android-*` select()s as toolchains//:rust below.
+config_setting(
+    name = "is-android-aarch64",
+    constraint_values = [
+        "prelude//os/constraints:os[android]",
+        "prelude//cpu/constraints:cpu[arm64]",
+    ],
+)
+
+config_setting(
+    name = "is-android-x86_64",
+    constraint_values = [
+        "prelude//os/constraints:os[android]",
+        "prelude//cpu/constraints:cpu[x86_64]",
+    ],
+)
+
 system_cxx_toolchain(
     name = "cxx",
     archiver = select({
-        "root//platforms:is-android-aarch64": NDK_TOOLCHAIN_BIN + "/llvm-ar",
-        "root//platforms:is-android-x86_64": NDK_TOOLCHAIN_BIN + "/llvm-ar",
+        ":is-android-aarch64": NDK_TOOLCHAIN_BIN + "/llvm-ar",
+        ":is-android-x86_64": NDK_TOOLCHAIN_BIN + "/llvm-ar",
         "DEFAULT": None,
     }),
     compiler = select({
-        "root//platforms:is-android-aarch64": NDK_TOOLCHAIN_BIN + "/aarch64-linux-android31-clang",
-        "root//platforms:is-android-x86_64": NDK_TOOLCHAIN_BIN + "/x86_64-linux-android31-clang",
+        ":is-android-aarch64": NDK_TOOLCHAIN_BIN + "/aarch64-linux-android31-clang",
+        ":is-android-x86_64": NDK_TOOLCHAIN_BIN + "/x86_64-linux-android31-clang",
         "DEFAULT": None,
     }),
     cxx_compiler = select({
-        "root//platforms:is-android-aarch64": NDK_TOOLCHAIN_BIN + "/aarch64-linux-android31-clang++",
-        "root//platforms:is-android-x86_64": NDK_TOOLCHAIN_BIN + "/x86_64-linux-android31-clang++",
+        ":is-android-aarch64": NDK_TOOLCHAIN_BIN + "/aarch64-linux-android31-clang++",
+        ":is-android-x86_64": NDK_TOOLCHAIN_BIN + "/x86_64-linux-android31-clang++",
         "DEFAULT": None,
     }),
     linker = select({
-        "root//platforms:is-android-aarch64": NDK_TOOLCHAIN_BIN + "/aarch64-linux-android31-clang++",
-        "root//platforms:is-android-x86_64": NDK_TOOLCHAIN_BIN + "/x86_64-linux-android31-clang++",
+        ":is-android-aarch64": NDK_TOOLCHAIN_BIN + "/aarch64-linux-android31-clang++",
+        ":is-android-x86_64": NDK_TOOLCHAIN_BIN + "/x86_64-linux-android31-clang++",
         "DEFAULT": None,
     }),
     visibility = ["PUBLIC"],
@@ -298,8 +316,8 @@ system_rust_toolchain(
     name = "rust",
     default_edition = "2021",
     rustc_target_triple = select({
-        "root//platforms:is-android-aarch64": "aarch64-linux-android",
-        "root//platforms:is-android-x86_64": "x86_64-linux-android",
+        ":is-android-aarch64": "aarch64-linux-android",
+        ":is-android-x86_64": "x86_64-linux-android",
         "DEFAULT": "x86_64-unknown-linux-gnu",
     }),
     visibility = ["PUBLIC"],

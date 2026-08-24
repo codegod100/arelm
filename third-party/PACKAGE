@@ -1,10 +1,10 @@
 # Tells reindeer-generated targets in this package (third-party/BUCK) which
 # reindeer.toml `[platform.NAME]` to select() on, keyed off the same
-# `//platforms:is-android-*` config_settings the root BUCK file and
-# toolchains/BUCK's NDK-aware `toolchains//:rust` toolchain already key off
-# (see platforms/BUCK) - one `--target-platforms=` flag now drives toolchain
-# selection, this reindeer platform selection, and arelm's own -L/-l flags all
-# at once.
+# cell-relative `//platforms:is-android-*` config_settings the root BUCK file
+# already keys off (see platforms/BUCK). The toolchain cell uses equivalent
+# local settings so it does not need to know this cell's downstream name. One
+# `--target-platforms=` flag now drives toolchain selection, this reindeer
+# platform selection, and arelm's own -L/-l flags all at once.
 #
 # Without this file, `reindeer buckify` has no way to know this repo has
 # non-default platforms (reindeer.toml's android-aarch64/android-x86_64
@@ -20,7 +20,7 @@ load("@prelude//rust:cargo_package.bzl", "set_reindeer_platforms")
 set_reindeer_platforms(
     select({
         "DEFAULT": "linux-x86_64",
-        "root//platforms:is-android-aarch64": "android-aarch64",
-        "root//platforms:is-android-x86_64": "android-x86_64",
+        "//platforms:is-android-aarch64": "android-aarch64",
+        "//platforms:is-android-x86_64": "android-x86_64",
     }),
 )
