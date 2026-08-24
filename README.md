@@ -70,6 +70,7 @@ via meson's `android_exe_type`, since that machinery never runs for us.
 | `src/main.rs` | Desktop entrypoint (`buck2 run //:arelm`). |
 | `src/android.rs` | Android cdylib entrypoint: exports the C `main` pixiewood/GTK's Android glue calls. |
 | `BUCK` | arelm's own `rust_library`/`rust_binary` targets (see "How the buck2 build is put together" below). |
+| `example/` | A second Buck2 cell that consumes this one: `buck2 run example//:app` links `root//:arelm-lib`. |
 | `platforms/BUCK` | `platform()`/`config_setting()` targets for `android-aarch64`/`android-x86_64`, keying every other `select()` in this repo. |
 | `toolchains/BUCK` | The NDK-aware `rust`/`cxx` toolchains buck2 uses to actually cross-compile and link for Android. |
 | `reindeer.toml`, `third-party/` | reindeer's config, fixups, vendored crate sources, and the generated `third-party/BUCK` - the entire third-party dependency graph as real buck2 targets. See below. |
@@ -83,6 +84,13 @@ via meson's `android_exe_type`, since that machinery never runs for us.
 
 ```sh
 buck2 run //:arelm
+```
+
+A second cell in `example/` shows the same library consumed across a cell
+boundary (`example//:app` depends on `root//:arelm-lib`):
+
+```sh
+buck2 run example//:app
 ```
 
 This builds and runs `src/main.rs` against your system's GTK4 (via

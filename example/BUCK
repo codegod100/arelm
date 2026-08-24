@@ -1,0 +1,28 @@
+# Downstream-style consumer of this repo's root cell. The only arelm
+# dependency is `root//:arelm-lib` — the same public rust_library the desktop
+# `//:arelm` binary and the Android cdylib both wrap.
+#
+# GTK `-L` search paths have to sit on the *final* rustc/link invocation (the
+# -sys crates embed `-l` via rlib metadata, but not `-L`; see the comment on
+# HOMEBREW_GTK4_LIB_DIRS in the root BUCK). Desktop-only here: this example
+# is the "another project depending on the cell" demo, not an Android target.
+HOMEBREW_GTK4_LIB_DIRS = [
+    "-L/home/linuxbrew/.linuxbrew/lib",
+    "-L/home/linuxbrew/.linuxbrew/Cellar/gtk4/4.22.4/lib",
+    "-L/home/linuxbrew/.linuxbrew/Cellar/pango/1.58.2/lib",
+    "-L/home/linuxbrew/.linuxbrew/Cellar/harfbuzz/14.3.1/lib",
+    "-L/home/linuxbrew/.linuxbrew/Cellar/cairo/1.18.4/lib",
+    "-L/home/linuxbrew/.linuxbrew/Cellar/graphene/1.10.8/lib",
+    "-L/home/linuxbrew/.linuxbrew/Cellar/glib/2.88.3/lib",
+]
+
+rust_binary(
+    name = "app",
+    srcs = ["src/main.rs"],
+    crate = "example",
+    crate_root = "src/main.rs",
+    edition = "2021",
+    rustc_flags = HOMEBREW_GTK4_LIB_DIRS,
+    visibility = ["PUBLIC"],
+    deps = ["root//:arelm-lib"],
+)
